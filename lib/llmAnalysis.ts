@@ -64,7 +64,7 @@ const SYSTEM_PROMPT = `אתה מנתח מוכנות אתרים עסקיים למ
 export async function runLlmAnalysis(
   snapshot: SiteSnapshot,
   track: ResolvedTrack,
-): Promise<{ criteria: CriterionResult[]; topActions: TopAction[] }> {
+): Promise<{ criteria: CriterionResult[]; topActions: TopAction[]; usage: unknown }> {
   const llmCriteria = criteriaForTrack(track).filter((c) => c.source === "llm");
 
   const criteriaForPrompt = llmCriteria.map((c) => ({
@@ -109,5 +109,9 @@ export async function runLlmAnalysis(
     sourceType: "content_analysis" as const,
   }));
 
-  return { criteria: criteriaResults, topActions: parsed.topActions };
+  return {
+    criteria: criteriaResults,
+    topActions: parsed.topActions,
+    usage: { model: "claude-opus-5", ...response.usage },
+  };
 }

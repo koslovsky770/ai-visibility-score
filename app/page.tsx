@@ -1,21 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import type { AnalysisReport } from "@/lib/types";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ScanningLoader from "@/components/ScanningLoader";
-import ScoreHeader from "@/components/ScoreHeader";
-import CategoryCard from "@/components/CategoryCard";
-import FindingsList from "@/components/FindingsList";
-import TopActions from "@/components/TopActions";
-import CtaBanner from "@/components/CtaBanner";
 
 type ViewState =
   | { status: "form" }
   | { status: "loading" }
-  | { status: "report"; report: AnalysisReport }
   | { status: "error"; message: string; warnings?: string[] };
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeInner />
+    </Suspense>
+  );
+}
+
+function HomeInner() {
+  const router = useRouter();
+  const token = useSearchParams().get("t");
   const [view, setView] = useState<ViewState>({ status: "form" });
   const [form, setForm] = useState({ url: "", businessName: "", field: "", region: "" });
 
@@ -26,7 +30,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, token }),
       });
       const data = await res.json();
 
@@ -38,7 +42,7 @@ export default function Home() {
         setView({ status: "error", message: data.message, warnings: data.crawlWarnings });
         return;
       }
-      setView({ status: "report", report: data.report as AnalysisReport });
+      router.push(`/report/${data.reportId}`);
     } catch {
       setView({ status: "error", message: "אירעה שגיאת תקשורת. בדקו את החיבור ונסו שוב." });
     }
@@ -51,7 +55,9 @@ export default function Home() {
         <p className="mt-3 text-lg text-slate-500">עד כמה האתר שלך מוכן לעידן ה-AI?</p>
       </header>
 
-      {view.status === "form" && (
+      {view.status === "form" && !token && <PurchasePrompt />}
+
+      {view.status === "form" && token && (
         <form
           onSubmit={handleSubmit}
           className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm"
@@ -114,42 +120,6 @@ export default function Home() {
         </div>
       )}
 
-      {view.status === "report" && (
-        <div className="space-y-8">
-          <ScoreHeader report={view.report} />
-
-          {view.report.crawlWarnings.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              <p className="font-semibold">שימו לב:</p>
-              <ul className="mt-1 list-inside list-disc space-y-1">
-                {view.report.crawlWarnings.map((w, i) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {view.report.categories.map((cat) => (
-              <CategoryCard key={cat.category} category={cat} />
-            ))}
-          </div>
-
-          <FindingsList whatWorks={view.report.whatWorks} whatIsMissing={view.report.whatIsMissing} />
-          <TopActions actions={view.report.topActions} />
-          <CtaBanner />
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setView({ status: "form" })}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
-            >
-              בדקו אתר נוסף
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
@@ -182,5 +152,25 @@ function Field({
         className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
     </label>
+  );
+}
+
+function PurchasePrompt() {
+  const paymentUrl = process.env.NEXT_PUBLIC_FULL_AUDIT_PAYMENT_URL;
+  return (
+    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 text-center shadow-sm">
+      <p className="text-lg font-bold text-slate-900">הבדיקה המלאה – 149 ₪, תשלום חד-פעמי</p>
+      <p className="text-slate-600">
+        לאחר התשלום תקבלו קישור אישי להזנת האתר ולקבלת הדוח המלא.
+      </p>
+      {paymentUrl && (
+        <a
+          href={paymentUrl}
+          className="inline-block rounded-xl bg-indigo-600 px-8 py-3 font-bold text-white transition hover:bg-indigo-700"
+        >
+          לבדיקת האתר המלאה – 149 ₪
+        </a>
+      )}
+    </div>
   );
 }
