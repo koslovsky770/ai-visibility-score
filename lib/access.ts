@@ -19,7 +19,7 @@ export async function grantCredit(input: {
   externalId: string;
   email?: string | null;
   amountAgorot?: number | null;
-  source: "grow" | "manual";
+  source: "grow" | "woocommerce" | "manual";
 }): Promise<{ token: string; created: boolean }> {
   const sql = await db();
   const inserted = (await sql`
@@ -95,4 +95,15 @@ export async function getReport(id: string): Promise<AnalysisReport | null> {
   const sql = await db();
   const rows = (await sql`SELECT report FROM reports WHERE id = ${id}`) as { report: AnalysisReport }[];
   return rows[0]?.report ?? null;
+}
+
+/** Cancels an unused credit after a refund or cancelled order. A credit already used stays as is. */
+export async function revokeCredit(externalId: string): Promise<boolean> {
+  const sql = await db();
+  const rows = (await sql`
+    UPDATE credits SET status = 'revoked'
+    WHERE status = 'available'
+      AND order_id = (SELECT id FROM orders WHERE external_id = ${externalId})
+    RETURNING token`) as unknown[];
+  return rows.length === 1;
 }
